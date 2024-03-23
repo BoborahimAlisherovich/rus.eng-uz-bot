@@ -9,14 +9,15 @@ import logging
 import sys
 from menucommands.set_bot_commands  import set_default_commands
 from baza.sqlite import Database
-from filters.admin import IsBotAdminFilter
-from filters.check_sub_channel import IsCheckSubChannels
+from filtersS.admin import IsBotAdminFilter
+from filtersS.check_sub_channel import IsCheckSubChannels
 from keyboard_buttons import admin_keyboard
 from aiogram.fsm.context import FSMContext
 from middlewares.throttling import ThrottlingMiddleware #new
 from states.reklama import Adverts
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from translate import Translator
 import time 
 ADMINS = config.ADMINS
 TOKEN = config.BOT_TOKEN
@@ -48,43 +49,97 @@ async def kanalga_obuna(message:Message):
     await message.answer(f"{text} kanallarga azo bo'ling",reply_markup=button)
 
 
+@dp.message(Command("help"))
+async def is_admin(message:Message):
+    await message.answer(text="bu botga ingliz va rus tillaridan text yuboring men uzbekchaga ugirib beraman")
+
+@dp.message(Command("abaut"))
+async def is_admin(message:Message):
+    await message.answer(text="Dasturchi: Rustamqulov Boborahim Bu botni 2024 yil 23- mart kuni yaratdim ")
 
 
 
 #Admin panel uchun
-@dp.message(Command("admin"),IsBotAdminFilter(ADMINS))
+@dp.message(Command("admin"))
 async def is_admin(message:Message):
     await message.answer(text="Admin menu",reply_markup=admin_keyboard.admin_button)
 
-
-@dp.message(F.text=="Foydalanuvchilar soni",IsBotAdminFilter(ADMINS))
-async def users_count(message:Message):
+@dp.message(F.text == "Foydalanuvchilar soni")
+async def users_count(message: Message):
     counts = db.count_users()
     text = f"Botimizda {counts[0]} ta foydalanuvchi bor"
     await message.answer(text=text)
 
-@dp.message(F.text=="Reklama yuborish",IsBotAdminFilter(ADMINS))
-async def advert_dp(message:Message,state:FSMContext):
+@dp.message(F.text == "Reklama yuborish")
+async def advert_dp(message: Message, state: FSMContext):
     await state.set_state(Adverts.adverts)
-    await message.answer(text="Reklama yuborishingiz mumkin !")
+    await bot.send_message(chat_id=message.chat.id, text="Reklama yuborishingiz mumkin !")
+
+import asyncio
 
 @dp.message(Adverts.adverts)
-async def send_advert(message:Message,state:FSMContext):
-    
+async def send_advert(message:Message, state:FSMContext):
     message_id = message.message_id
     from_chat_id = message.from_user.id
-    users = await db.all_users_id()
+    users = db.all_users_id()  # Sinxron ravishda ma'lumotlar olish
     count = 0
     for user in users:
         try:
-            await bot.copy_message(chat_id=user[0],from_chat_id=from_chat_id,message_id=message_id)
+            await bot.copy_message(chat_id=user[0], from_chat_id=from_chat_id, message_id=message_id)
             count += 1
         except:
             pass
-        time.sleep(0.5)
-    
+        await asyncio.sleep(0.5)  # Asinxron ravishda boshqa tasklar yopiq qolish
     await message.answer(f"Reklama {count}ta foydalanuvchiga yuborildi")
     await state.clear()
+
+
+@dp.message(F.text == "Bekor qilish")
+async def cancel_advert(message: Message, state: FSMContext):
+    await state.finish()
+    await message.answer("Reklama yuborish bekor qilindi!")
+
+
+
+@dp.message(F.text)
+async def english(message:Message):
+    translator = Translator(from_lang="ru",to_lang="uz")
+    text_Eng = message.text
+    text_Rus = translator.translate(text_Eng)
+    await message.answer(text_Rus)
+
+
+@dp.message(F.text)
+async def russia(message:Message):
+    translator = Translator(from_lang="eng",to_lang="uz")
+    text_Rus = message.text
+    text_Eng = translator.translate(text_Rus)
+    await message.answer(text_Eng)
+
+
+# @dp.message(F.text)
+# async def russia(message:Message):
+#     translator = Translator(from_lang="tatar",to_lang="uzb")
+#     text_tojik = message.text
+#     text_Ruf = translator.translate(text_tojik)
+#     await message.answer(text_Ruf)
+
+
+
+# @dp.message(F.text)
+# async def russia(message:Message):
+#     translator = Translator(from_lang="qozoq",to_lang="uzb")
+#     text_qzoq = message.text
+#     uz = translator.translate(text_qzoq)
+#     await message.answer(uz)
+
+@dp.message(F.text)
+async def russia(message:Message):
+    translator = Translator(from_lang="arab",to_lang="uz")
+    text_arab = message.text
+    uz = translator.translate(text_arab)
+    await message.answer(uz)
+
 
 
 
@@ -122,7 +177,70 @@ async def main() -> None:
 
 
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
     asyncio.run(main())
+
+
+
+
+from googletrans import Translator
+
+def tarjima_uz_ru(text_uz):
+    translator = Translator()
+    tarjima = translator.translate(text_uz, src='uz', dest='ru')
+    return tarjima.text
+
+def tarjima_ru_en(text_ru):
+    translator = Translator()
+    tarjima = translator.translate(text_ru, src='ru', dest='en')
+    return tarjima.text
+
+# Test qilish
+if __name__ == "__main__":
+    text_uzbekcha = "Salom, dunyo!"
+    tarjima_ru = tarjima_uz_ru(text_uzbekcha)
+    print("O'zbek tilidan rus tiliga tarjima:", tarjima_ru)
+
+    text_ruscha = "Привет, мир!"
+    tarjima_en = tarjima_ru_en(text_ruscha)
+    print("Rus tilidan ingliz tiliga tarjima:", tarjima_en)
+
+
+
+
+# from aiogram import Bot
+# from aiogram.types import BotCommand
+# from aiogram.utils import executor
+# import asyncio
+
+# async def change_token(old_token, new_token):
+#     old_bot = Bot(token=old_token)
+#     new_bot = Bot(token=new_token)
+
+#     # Old tokenni bekor qilish
+#     commands = await old_bot.get_my_commands()
+#     for command in commands:
+#         await old_bot.delete_my_commands(command.command)
+
+#     # Yangi tokenni qo'llash
+#     commands = [
+#         BotCommand(command="/start", description="Botni boshlash"),
+#         BotCommand(command="/help", description="Yordam"),
+#         # Boshqa komandalarni ham qo'shing
+#     ]
+#     await new_bot.set_my_commands(commands)
+
+#     print("Yangi token bilan bot komandalari qo'llandi")
+
+# async def main():
+#     old_token = "eskining_token"
+#     new_token = "yangining_token"
+#     await change_token(old_token, new_token)
+
+# if __name__ == "__main__":
+#     loop = asyncio.get_event_loop()
+#     loop.run_until_complete(main())
+#     loop.close()
